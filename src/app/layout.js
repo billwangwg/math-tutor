@@ -45,6 +45,16 @@ export default function RootLayout({ children }) {
                 />
 
                 {children}
+
+                <footer className="py-6 text-center text-gray-400 text-sm border-t border-gray-100 mt-12 bg-gray-50/50">
+                    <div className="flex flex-col gap-1">
+                        <p>家长急救包 · Math Tutor</p>
+                        <p className="font-mono text-xs opacity-70">
+                            v0.1.0 • Build 2026-01-11
+                        </p>
+                    </div>
+                </footer>
+
                 <Analytics />
             </body>
         </html>
