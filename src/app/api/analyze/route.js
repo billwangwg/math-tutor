@@ -1,13 +1,25 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { LRUCache } from "lru-cache";
+
+// Rate Limiter: 500 IPs, 60s TTL
+const rateLimit = new LRUCache({
+  max: 500,
+  ttl: 60 * 1000,
+});
 
 // 1. Define Prompt on Server Side (Secure)
 const MATH_TUTOR_PROMPT = `
 你是一位资深的初中数学教育专家（侧重于波利亚解题法与脚手架教学）。请分析这张图片。
 
 # 核心任务
-帮助学生（约12-14岁）通过"拆解-引导-规范"的过程，完全掌握这道题。
+帮助学生（约12-14岁）通过"拆解-引导-规范"的过程完全掌握这道题。
+
+# 数量强制要求 (CRITICAL)
+1. **模块一 (knowledge_checks)**：必须包含 **3道** 知识点诊脉题。
+2. **模块二 (scaffolding_questions)**：必须包含 **3道** 解题引导题 (分别对应: 观察、工具、策略)。
+3. **总数检查**：JSON 中必须总共包含 6 道选择题，少一道都不行。
 
 # 输出要求 (Strict JSON)
 请严格返回以下 JSON 格式（纯 JSON，无 Markdown 标记）。
@@ -127,8 +139,22 @@ const MATH_TUTOR_PROMPT = `
 }
 `;
 
+export const maxDuration = 60; // Request 60s timeout from Vercel
+
 export async function POST(req) {
   try {
+    // 0. Security: Rate Limiting
+    const ip = req.headers.get("x-forwarded-for") || "unknown";
+    const tokenCount = rateLimit.get(ip) || 0;
+
+    if (tokenCount >= 5) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again in a minute." },
+        { status: 429 }
+      );
+    }
+    rateLimit.set(ip, tokenCount + 1);
+
     const { imageData, modelName } = await req.json();
 
     if (!imageData) {
@@ -146,6 +172,8 @@ export async function POST(req) {
       model: modelName || "gemini-3-flash-preview",
       generationConfig: {
         temperature: 0.4,
+        topP: 0.95,
+        topK: 40,
         maxOutputTokens: 8192,
       }
     });
@@ -160,89 +188,32 @@ export async function POST(req) {
       }
     ];
 
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    const text = response.text();
+    // Use generateContentStream for streaming response
+    const result = await model.generateContentStream(parts);
 
-    // Basic Sanitization
-    const cleanJson = text.replace(/```json | ```/g, '').trim();
-
-    // Robust Sanitization (Fix invalid escapes)
-    let parsedData;
-    try {
-      parsedData = JSON.parse(cleanJson);
-    } catch (e) {
-      console.warn("Initial JSON parse failed, attempting sanitizer...");
-      try {
-        // 1. Remove Markdown code blocks
-        const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-        // 2. Escape backslashes that are NOT control characters or already escaped
-        // Standard JSON allows \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
-        // We want to preserve LaTeX commands like \sqrt (which becomes \s -> invalid escape in JSON)
-        // So we escape ALL \ that are not valid JSON escapes.
-        let sanitized = cleanJson.replace(/(?<!\\)\\(?![\["\\/bfnrtu])/g, "\\\\");
-
-        // 3. REPAIR DAMAGED CONTROL CHARACTERS
-        // Some LaTeX commands (\times, \frac) collide with JSON escapes (\t, \f)
-        // If the model output "\times", JSON.parse reads it as [TAB]imes.
-        // We must intercept this BEFORE parsing usually, but here 'sanitized' is a string.
-        // We replace the LITERAL sequence \ + t with \\t etc if we can,
-        // BUT if regex failed, we might have issues.
-
-        // Brute force repair common LaTeX commands to be double-escaped
-        const repairs = [
-          ['\\times', '\\\\times'],
-          ['\\frac', '\\\\frac'],
-          ['\\sqrt', '\\\\sqrt'],
-          ['\\cdot', '\\\\cdot'],
-          ['\\angle', '\\\\angle'],
-          ['\\circ', '\\\\circ'],
-          ['\\sin', '\\\\sin'],
-          ['\\cos', '\\\\cos'],
-          ['\\tan', '\\\\tan'],
-          ['\\perp', '\\\\perp'],
-          ['\\triangle', '\\\\triangle'],
-          ['\\leq', '\\\\leq'],
-          ['\\geq', '\\\\geq'],
-          ['\\pi', '\\\\pi'],
-          ['\\infty', '\\\\infty'],
-          ['\\Delta', '\\\\Delta'],
-          ['\\approx', '\\\\approx'],
-          ['^', '^'] // placeholder
-        ];
-
-        repairs.forEach(([target, replacement]) => {
-          // Replace literal target (e.g. \times) with replacement (e.g. \\times)
-          // We use split/join to avoid regex escaping headaches
-          if (target !== '^') {
-            sanitized = sanitized.split(target).join(replacement);
-          }
-        });
-
-        // 4. Handle "Missing brace" issues
-        // Often caused by \text{...} -> \t (tab) ... brace mismatch?
-        // Or ^\circ -> ^\c (invalid) -> ^\\circ (ok).
-        // Check specifically for mangled \right (often becomes \r -> CR)
-        sanitized = sanitized.replace(/\r/g, '\\\\right'); // If \right became CR
-        sanitized = sanitized.replace(/\t/g, '    '); // Tabs in text -> 4 spaces
-        // Wait, if \times became TAB, we lost "times".
-        // Actually, if we are editing the RAW STRING, \t is literal \ + t.
-        // It is NOT a tab char.
-        // So split('\times') works.
-
+    // Create a readable stream to pipe data to client
+    const stream = new ReadableStream({
+      async start(controller) {
         try {
-          parsedData = JSON.parse(sanitized); // Assign to parsedData here
-        } catch (parseError) {
-          return NextResponse.json({ error: "JSON Parse Failed", raw: text }, { status: 500 });
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            if (chunkText) {
+              controller.enqueue(new TextEncoder().encode(chunkText));
+            }
+          }
+          controller.close();
+        } catch (err) {
+          console.error("Streaming error:", err);
+          controller.error(err);
         }
-      } catch (sanitizerError) { // Catch for the inner try block (sanitization process)
-        console.error("Sanitization process failed:", sanitizerError);
-        return NextResponse.json({ error: "Sanitization failed, then JSON parse failed", raw: text }, { status: 500 });
       }
-    }
+    });
 
-    return NextResponse.json(parsedData);
+    return new NextResponse(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
+    });
 
   } catch (error) {
     console.error("API Error:", error);

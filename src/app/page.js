@@ -18,7 +18,8 @@ export default function Home() {
         quizState,
         setQuizState,
         handleQuizAnswer,
-        analysisResult
+        analysisResult,
+        regenerateQuiz
     } = useMathTutor();
 
     const renderContent = () => {
@@ -85,6 +86,7 @@ export default function Home() {
                             setCurrentView('upload');
                             window.scrollTo(0, 0);
                         }}
+                        onRegenerate={regenerateQuiz}
                     />
                 );
 

@@ -3,9 +3,23 @@ import { Analytics } from "@vercel/analytics/react"
 import Script from 'next/script';
 import './globals.css';
 
+export const viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    themeColor: '#ffffff',
+};
+
 export const metadata = {
-    title: '家长急救包',
-    description: 'Intelligent, adaptive math tutoring with Gemini',
+    title: '家长急救包 | 智能初中数学辅导',
+    description: '基于 Google Gemini 的智能数学解题助手。拍照上传，即刻获得波利亚式解题引导、知识点诊脉与变式练习，帮助家长轻松辅导孩子。',
+    keywords: ['初中数学', '家长辅导', 'AI解题', '波利亚解题法', '数学思维', 'Gemini', 'Google Generative AI'],
+    authors: [{ name: 'Math Tutor Team' }],
+    openGraph: {
+        title: '家长急救包 - 爸妈的数学辅导神器',
+        description: '拍照即解，深度剖析。不只是给答案，更是教会解题思维。',
+        type: 'website',
+    },
 };
 
 export default function RootLayout({ children }) {
@@ -41,7 +55,7 @@ export default function RootLayout({ children }) {
                 <Script
                     id="mathjax-loader"
                     strategy="afterInteractive"
-                    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+                    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-svg.js"
                 />
 
                 {children}

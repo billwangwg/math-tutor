@@ -1,5 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
+import MathText from './MathText';
+// import { renderMath } from '../utils/mathHelpers'; // Unused now
 
 export default function Quiz({ quizState, onAnswer, onNext, onRetry }) {
     const { questions, currentIndex, isCompleted } = quizState;
@@ -14,22 +16,9 @@ export default function Quiz({ quizState, onAnswer, onNext, onRetry }) {
         setSelectedOption(null);
         setFeedback(null);
         setShowNext(false);
-        // Trigger MathJax with a slight delay to ensure DOM is ready
-        if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-            setTimeout(() => {
-                window.MathJax.typesetPromise().catch(err => console.log('MathJax error:', err));
-            }, 50);
-        }
     }, [currentIndex, currentQ]);
 
-    // Trigger MathJax when feedback appears
-    useEffect(() => {
-        if (feedback && window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-            setTimeout(() => {
-                window.MathJax.typesetPromise().catch(err => console.log('MathJax error:', err));
-            }, 50);
-        }
-    }, [feedback]);
+    // renderMath hooks removed as MathText handles it
 
     if (!currentQ) return null;
 
@@ -73,7 +62,7 @@ export default function Quiz({ quizState, onAnswer, onNext, onRetry }) {
             </div>
 
             <div className="question-card">
-                <p className="text-lg mb-4" dangerouslySetInnerHTML={{ __html: currentQ.question }}></p>
+                <MathText className="text-lg mb-4" content={currentQ.question} />
             </div>
 
             <div className="options-list">
@@ -102,7 +91,7 @@ export default function Quiz({ quizState, onAnswer, onNext, onRetry }) {
                                     boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                                 }}>
                                     <strong>🚫 {feedback.tag}: </strong>
-                                    <span dangerouslySetInnerHTML={{ __html: feedback.message }}></span>
+                                    <MathText content={feedback.message} />
                                     <div style={{
                                         position: 'absolute', bottom: '-6px', left: '20px',
                                         width: '0', height: '0',
@@ -118,7 +107,7 @@ export default function Quiz({ quizState, onAnswer, onNext, onRetry }) {
                                 onClick={() => handleOptionClick(idx)}
                             >
                                 <span className="font-bold mr-2">{String.fromCharCode(65 + idx)}.</span>
-                                <span dangerouslySetInnerHTML={{ __html: opt.replace(/^[A-H][.、]\s*/, '') }}></span>
+                                <MathText content={opt.replace(/^[A-H][.、]\s*/, '')} />
                             </div>
                         </div>
                     );
@@ -128,7 +117,9 @@ export default function Quiz({ quizState, onAnswer, onNext, onRetry }) {
             {/* Next Button */}
             {showNext && (
                 <div className="mt-6 text-center fade-in">
-                    <p className="mb-2 text-green-600 font-bold" dangerouslySetInnerHTML={{ __html: currentQ.explanation || '解析正确' }}></p>
+                    <div className="mb-2 text-green-600 font-bold">
+                        <MathText content={currentQ.explanation || '解析正确'} />
+                    </div>
                     <button className="btn" onClick={onNext}>
                         下一步 ▶️
                     </button>

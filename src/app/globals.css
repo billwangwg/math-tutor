@@ -60,6 +60,16 @@ body {
     padding: 1rem;
     /* Slightly less on very small screens */
   }
+
+  /* Compact container on mobile */
+  .container {
+    padding: 1rem !important;
+  }
+
+  /* Compact upload zone on mobile */
+  .upload-zone {
+    padding: 2rem 1rem !important;
+  }
 }
 
 .btn-primary {
@@ -153,6 +163,10 @@ input:focus {
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
+  overflow-wrap: break-word;
+  /* Prevent text overflow */
+  word-break: normal;
+  /* Break long words if needed */
 }
 
 .option:hover {
@@ -224,12 +238,15 @@ input:focus {
   overflow-x: auto;
 }
 
-mjx-container {
+mjx-container[display="true"] {
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
-  white-space: normal !important;
-  /* Allow wrapping inside math */
+}
+
+mjx-container:not([display="true"]) {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 mjx-assistive-mml {

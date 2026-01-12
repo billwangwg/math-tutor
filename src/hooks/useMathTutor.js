@@ -1,5 +1,6 @@
 
 import { useState, useRef, useCallback } from 'react';
+import { compressImage, robustJsonParse } from '../utils/mathHelpers';
 
 const LOADING_MESSAGES = [
     "🚀 正在扫描图片内容...",
@@ -14,7 +15,7 @@ const LOADING_MESSAGES = [
 export function useMathTutor() {
     // Views: 'setup', 'upload', 'loading', 'quiz', 'wizard'
     const [currentView, setCurrentView] = useState('setup');
-    const [apiKey, setApiKey] = useState('');
+    // Removed unused apiKey state (handled server-side)
     const [modelName, setModelName] = useState('gemini-3-flash-preview');
 
     // Data State
@@ -56,36 +57,64 @@ export function useMathTutor() {
     const processImage = async (file) => {
         setCurrentFile(file);
         setCurrentView('loading');
+        setLoadingLog("🚀 正在优化图片上传...");
+
         startLoadingAnimation();
 
         try {
-            // 1. Convert to Base64
-            const reader = new FileReader();
-            const base64Promise = new Promise((resolve) => {
-                reader.onloadend = () => resolve(reader.result.split(',')[1]);
+            // 1. Compress & Convert
+            const { fullDataUrl, base64Body } = await compressImage(file, (currentLength, attempt) => {
+                setLoadingLog(`📉 图片过大 (${(currentLength / 1024 / 1024).toFixed(1)}MB), 正在压缩 (第${attempt}次)...`);
             });
-            reader.readAsDataURL(file);
-            const base64Data = await base64Promise;
-            setImageData(`data:${file.type};base64,${base64Data}`);
+            setImageData(fullDataUrl);
 
-            // 2. Call API
+            // 2. Call API (STREAMING)
+            setLoadingLog(LOADING_MESSAGES[0]);
             const response = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    imageData: base64Data,
-                    modelName: modelName // Optional if handled by server env defaults
+                    imageData: base64Body,
+                    modelName: modelName
                 })
             });
 
             if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || 'Server Error');
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Server Error: ${response.status}`);
             }
 
-            const data = await response.json();
+            // STREAM READING
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedText = "";
+            let chunkCount = 0;
 
-            // 3. Process Data (Merge Questions)
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                accumulatedText += chunk;
+                chunkCount++;
+
+                // Update Log periodically to show liveliness
+                if (chunkCount % 5 === 0) {
+                    setLoadingLog(`⚡️ 正在接收 AI 分析数据 (${(accumulatedText.length / 1024).toFixed(1)}KB)...`);
+                }
+            }
+
+            // 3. Process Data (Client-Side Parsing & Sanitization)
+            setLoadingLog("🧠 正在解析数学逻辑...");
+            let data;
+
+            try {
+                data = robustJsonParse(accumulatedText);
+            } catch (e) {
+                console.error("JSON Parsing Error:", e);
+                throw e; // Error already contains details from robustJsonParse
+            }
+
+            // 4. Merge Questions & Update State
             const mergedQuestions = [
                 ...(data.knowledge_checks || []).map(q => ({
                     ...q, type: 'knowledge', correctIndex: q.correct_index, explanation: q.explanation
@@ -148,10 +177,17 @@ export function useMathTutor() {
         return isCorrect;
     };
 
+    const regenerateQuiz = useCallback(() => {
+        if (currentFile) {
+            processImage(currentFile);
+        }
+    }, [currentFile]);
+
     return {
         currentView,
         setCurrentView,
         processImage,
+        regenerateQuiz,
         loadingLog,
         imageData,
         analysisResult,

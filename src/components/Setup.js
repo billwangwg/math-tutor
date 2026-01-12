@@ -45,7 +45,7 @@ export default function Setup({ onViewChange, onProcessImage }) {
                 <img
                     src="jzjjb.png"
                     alt="Logo"
-                    className="w-24 h-auto mx-auto mb-4 rounded-2xl shadow-lg"
+                    className="w-20 md:w-24 h-auto mx-auto mb-4 rounded-2xl shadow-lg transition-all duration-300"
                 />
                 <h1 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-blue-600 to-blue-400 mb-2">
                     家长急救包

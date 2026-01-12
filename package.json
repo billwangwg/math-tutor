@@ -1,6 +1,6 @@
 {
   "name": "math-tutor-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@vercel/analytics": "^1.6.1",
+    "lru-cache": "^11.2.4",
     "lucide-react": "^0.562.0",
     "next": "14.1.0",
     "react": "^18.2.0",

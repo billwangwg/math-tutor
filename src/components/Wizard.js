@@ -1,26 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, ArrowRight, Lightbulb, AlertTriangle, Flag, Brain } from 'lucide-react';
+import { CheckCircle, ArrowRight, AlertTriangle, Flag, Brain } from 'lucide-react';
+import MathText from './MathText';
 
 const ChallengeView = ({ challenge }) => {
     const [showAns, setShowAns] = useState(false);
     const data = challenge || {};
-
-    // Trigger MathJax when answer is toggled
-    useEffect(() => {
-        if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-            setTimeout(() => {
-                window.MathJax.typesetPromise().catch(err => console.log('MathJax error:', err));
-            }, 50);
-        }
-    }, [showAns, challenge]);
 
     return (
         <div className="glass-panel fade-in" style={{ background: 'rgba(255, 250, 240, 0.8)', borderColor: '#fbd38d' }}>
             <h3 className="flex items-center text-xl font-bold text-orange-600 mb-4">
                 <Flag className="mr-2" /> 举一反三
             </h3>
-            <p className="font-medium text-lg mb-4">{data.question || '暂无题目'}</p>
+            <MathText className="font-medium text-lg mb-4" content={data.question || '暂无题目'} />
 
             <button
                 onClick={() => setShowAns(!showAns)}
@@ -31,14 +23,14 @@ const ChallengeView = ({ challenge }) => {
 
             {showAns && (
                 <div className="mt-4 p-4 bg-orange-100 rounded text-orange-900 fade-in">
-                    <strong>答案：</strong> {data.answer}
+                    <strong>答案：</strong> <MathText content={data.answer} />
                 </div>
             )}
         </div>
     );
 };
 
-export default function Wizard({ analysisResult, onRestart }) {
+export default function Wizard({ analysisResult, onRestart, onRegenerate }) {
     const [currentStep, setCurrentStep] = useState(0);
     // 0: Solution, 1: Deep Analysis, 2: Pitfalls, 3: Challenge, 4: Done
 
@@ -53,14 +45,7 @@ export default function Wizard({ analysisResult, onRestart }) {
         { icon: CheckCircle, label: "完成" }
     ];
 
-    // Trigger MathJax on updates
-    useEffect(() => {
-        if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-            setTimeout(() => {
-                window.MathJax.typesetPromise().catch(err => console.log('MathJax error:', err));
-            }, 50);
-        }
-    }, [currentStep, revealedSolutionItems]);
+    // MathJax handled by MathText components individually
 
     const handleNext = () => {
         if (currentStep < steps.length - 1) {
@@ -92,16 +77,6 @@ export default function Wizard({ analysisResult, onRestart }) {
                     if (isSetup) bgStyle = { background: 'rgba(233, 216, 253, 0.3)', borderLeftColor: '#805ad5' };
                     if (isVerify) bgStyle = { background: 'rgba(240, 255, 244, 0.5)', borderLeftColor: '#48bb78' };
 
-                    // LaTeX Sanitizer: Force Display Mode
-                    let latexContent = step.latex;
-                    if (latexContent) {
-                        const trimmed = latexContent.trim();
-                        // If it doesn't start with $ or $$, wrap it in $$
-                        if (!trimmed.startsWith('$') && !trimmed.startsWith('\\[')) {
-                            latexContent = `$$${trimmed}$$`;
-                        }
-                    }
-
                     return (
                         <div key={idx} className="solution-step fade-in" style={{ ...bgStyle, overflowWrap: 'break-word' }}>
                             <strong style={{ color: isVerify ? '#2f855a' : '#6b46c1' }}>
@@ -113,7 +88,7 @@ export default function Wizard({ analysisResult, onRestart }) {
                                     {step.items.map((item, i) => (
                                         <div key={i} className="flex justify-between border-b border-dashed border-gray-200 py-1">
                                             <span className="text-gray-600 font-bold">{item.label}</span>
-                                            <span className="font-mono text-violet-600 break-all ml-4 text-right">{item.value}</span>
+                                            <MathText className="font-mono text-violet-600 ml-4 text-right" content={item.value} />
                                         </div>
                                     ))}
                                 </div>
@@ -121,15 +96,13 @@ export default function Wizard({ analysisResult, onRestart }) {
 
                             {!isSetup && (
                                 <>
-                                    <div
-                                        className="mt-2 text-gray-700 break-words"
-                                        style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
-                                        dangerouslySetInnerHTML={{ __html: step.content }}
+                                    <MathText
+                                        className="mt-2 text-gray-700"
+                                        content={step.content}
                                     />
-                                    {latexContent && (
+                                    {step.latex && (
                                         <div className="mt-2 text-center overflow-x-auto p-2 bg-white/60 rounded">
-                                            {/* Just output the raw latex, MathJax will find it */}
-                                            <p className="math-block" dangerouslySetInnerHTML={{ __html: latexContent }}></p>
+                                            <MathText className="math-block" block={true} content={step.latex} />
                                         </div>
                                     )}
                                 </>
@@ -165,7 +138,9 @@ export default function Wizard({ analysisResult, onRestart }) {
                             <span key={i} className="bg-white/20 px-2 py-1 rounded text-sm">{t}</span>
                         ))}
                     </div>
-                    <p className="opacity-90">{deepAnalysis.methodology}</p>
+                    <p className="opacity-90">
+                        <MathText content={deepAnalysis.methodology} />
+                    </p>
                 </div>
 
                 <div className="glass-panel" style={{ background: 'rgba(235, 248, 255, 0.6)' }}>
@@ -173,11 +148,11 @@ export default function Wizard({ analysisResult, onRestart }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white/50 p-3 rounded">
                             <strong className="block text-sm text-gray-500 mb-1">基础薄弱</strong>
-                            <p>{deepAnalysis.teachingStrategy?.struggling}</p>
+                            <p><MathText content={deepAnalysis.teachingStrategy?.struggling} /></p>
                         </div>
                         <div className="bg-white/50 p-3 rounded">
                             <strong className="block text-sm text-gray-500 mb-1">培优提升</strong>
-                            <p>{deepAnalysis.teachingStrategy?.advanced}</p>
+                            <p><MathText content={deepAnalysis.teachingStrategy?.advanced} /></p>
                         </div>
                     </div>
                 </div>
@@ -196,7 +171,7 @@ export default function Wizard({ analysisResult, onRestart }) {
                     {pitfalls.map((p, i) => (
                         <li key={i} className="flex items-start">
                             <span className="mr-2 text-red-500">❌</span>
-                            <span>{p}</span>
+                            <span><MathText content={p} /></span>
                         </li>
                     ))}
                 </ul>
@@ -223,9 +198,32 @@ export default function Wizard({ analysisResult, onRestart }) {
                         >
                             🖨️ 下载/打印完整报告 (PDF)
                         </button>
-                        <button onClick={onRestart} className="btn bg-gray-500 hover:bg-gray-600">
-                            🔄 再练一题
+
+                        <button onClick={onRegenerate} className="btn bg-purple-600 hover:bg-purple-700" style={{ background: '#805ad5' }}>
+                            🔄 重新出题 (换一批)
                         </button>
+
+                        <button onClick={onRestart} className="btn bg-gray-500 hover:bg-gray-600">
+                            📷 拍新的题目
+                        </button>
+                    </div>
+
+                    {/* Contact Section */}
+                    <div className="mt-12 pt-8 border-t border-gray-200">
+                        <div className="flex flex-col items-center">
+                            <div className="flex items-center gap-2 mb-4 text-gray-500 font-bold">
+                                <span className="text-2xl">👨‍👩‍👧‍👦</span>
+                                <span>家长急救包</span>
+                            </div>
+                            <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                                <img
+                                    src="/images/contact_qr.jpg"
+                                    alt="联系我们"
+                                    className="w-32 h-32 object-contain"
+                                />
+                            </div>
+                            <p className="mt-3 text-sm text-gray-400">扫码联系开发者 / 进群交流</p>
+                        </div>
                     </div>
                 </div>
             );
@@ -287,16 +285,16 @@ export default function Wizard({ analysisResult, onRestart }) {
                     <h2 className="text-xl font-bold border-l-4 border-blue-600 pl-3 mb-4">一、 知识点诊脉与引导</h2>
                     {(analysisResult.questions || []).map((q, i) => (
                         <div key={i} className="mb-6 p-4 border border-gray-200 rounded">
-                            <div className="font-bold mb-2">Q{i + 1}: <span dangerouslySetInnerHTML={{ __html: q.question }}></span></div>
+                            <div className="font-bold mb-2">Q{i + 1}: <MathText content={q.question} /></div>
                             <div className="grid grid-cols-2 gap-2 mb-2">
                                 {q.options.map((opt, oid) => (
                                     <div key={oid} className={`p-2 rounded ${oid === q.correctIndex ? 'font-bold text-green-700 bg-green-50' : 'text-gray-600'}`}>
-                                        {String.fromCharCode(65 + oid)}. <span dangerouslySetInnerHTML={{ __html: opt }}></span>
+                                        {String.fromCharCode(65 + oid)}. <MathText content={opt} />
                                     </div>
                                 ))}
                             </div>
                             <div className="text-sm bg-gray-50 p-2 rounded">
-                                <strong>解析：</strong> {q.explanation}
+                                <strong>解析：</strong> <MathText content={q.explanation} />
                             </div>
                         </div>
                     ))}
@@ -308,10 +306,10 @@ export default function Wizard({ analysisResult, onRestart }) {
                     {solutionSteps.map((step, idx) => (
                         <div key={idx} className="mb-4 break-inside-avoid">
                             <h3 className="font-bold text-violet-800 mb-1">{step.title}</h3>
-                            <p className="mb-2 text-gray-800">{step.content}</p>
+                            <p className="mb-2 text-gray-800"><MathText content={step.content} /></p>
                             {step.latex && (
                                 <div className="text-center p-2 bg-gray-50 rounded mb-2">
-                                    <p className="math-block" dangerouslySetInnerHTML={{ __html: step.latex.startsWith('$') ? step.latex : `$$${step.latex}$$` }}></p>
+                                    <MathText className="math-block" block={true} content={step.latex} />
                                 </div>
                             )}
                         </div>
@@ -325,12 +323,12 @@ export default function Wizard({ analysisResult, onRestart }) {
                         <strong>核心思想：</strong> {analysisResult.deepAnalysis?.mathThinkings?.join('、')}
                     </div>
                     <div className="mb-4">
-                        <strong>方法论：</strong> {analysisResult.deepAnalysis?.methodology}
+                        <strong>方法论：</strong> <MathText content={analysisResult.deepAnalysis?.methodology} />
                     </div>
                     <div className="p-4 bg-red-50 rounded border border-red-100">
                         <strong>⚠️ 易错警示：</strong>
                         <ul className="list-disc pl-5 mt-2">
-                            {(analysisResult.analysis?.pitfalls || []).map((p, i) => <li key={i}>{p}</li>)}
+                            {(analysisResult.analysis?.pitfalls || []).map((p, i) => <li key={i}><MathText content={p} /></li>)}
                         </ul>
                     </div>
                 </div>
@@ -339,8 +337,8 @@ export default function Wizard({ analysisResult, onRestart }) {
                 <div className="mb-8 break-inside-avoid">
                     <h2 className="text-xl font-bold border-l-4 border-orange-600 pl-3 mb-4">四、 举一反三</h2>
                     <div className="p-4 border border-orange-200 rounded">
-                        <p className="font-bold mb-2">问：{analysisResult.challenge?.question}</p>
-                        <p className="text-orange-800">答：{analysisResult.challenge?.answer}</p>
+                        <p className="font-bold mb-2">问：<MathText content={analysisResult.challenge?.question} /></p>
+                        <p className="text-orange-800">答：<MathText content={analysisResult.challenge?.answer} /></p>
                     </div>
                 </div>
             </div>
