@@ -1,5 +1,5 @@
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { compressImage, robustJsonParse } from '../utils/mathHelpers';
 
 const LOADING_MESSAGES = [
@@ -15,6 +15,40 @@ const LOADING_MESSAGES = [
 export function useMathTutor() {
     // Views: 'setup', 'upload', 'loading', 'quiz', 'wizard'
     const [currentView, setCurrentView] = useState('setup');
+
+    // Intercept Back Navigation
+    useEffect(() => {
+        if (currentView === 'quiz' || currentView === 'wizard') {
+            // Push a "fake" state to intercept the back action
+            window.history.pushState({ protected: true }, '');
+
+            const handlePopState = (e) => {
+                // Prevent default behavior implies we stay here, but browser already popped.
+                // We need to ask user.
+                const confirmExit = window.confirm("答题正在进行中，退出将丢失进度，确定要退出吗？");
+
+                if (!confirmExit) {
+                    // User wants to stay. Push state back again to restore the "trap".
+                    window.history.pushState({ protected: true }, '');
+                } else {
+                    // User wants to leave.
+                    // We can either let it happen (history is already popped) or force a view change.
+                    // Since the history pop already happened, we are technically "back".
+                    // But if "back" means going to previous page outside app, that's fine.
+                    // If "back" means previous view inside app, we might need to handle it.
+                    // Usually for SPA, we just update state.
+                    setCurrentView('upload');
+                }
+            };
+
+            window.addEventListener('popstate', handlePopState);
+
+            return () => {
+                window.removeEventListener('popstate', handlePopState);
+            };
+        }
+    }, [currentView]);
+
     // Removed unused apiKey state (handled server-side)
     const [modelName, setModelName] = useState('gemini-3-flash-preview');
 

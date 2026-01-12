@@ -60,7 +60,7 @@ export default function RootLayout({ children }) {
 
                 {children}
 
-                <footer className="py-6 text-center text-gray-400 text-sm border-t border-gray-100 mt-12 bg-gray-50/50">
+                <footer className="py-6 text-center text-gray-400 text-sm mt-12">
                     <div className="flex flex-col gap-1">
                         <p>家长急救包 · Math Tutor</p>
                         <p className="font-mono text-xs opacity-70">
